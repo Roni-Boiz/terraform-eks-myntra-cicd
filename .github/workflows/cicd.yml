@@ -83,9 +83,9 @@ jobs:
         run: |
           curl -fsSL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh -o install-scout.sh
           sh install-scout.sh
-          docker-scout quickview fs://. > scoutquickview.txt
+          docker scout quickview fs://. > scoutquickview.txt
           cat scoutquickview.txt
-          docker-scout cves fs://. > scoutcves.txt
+          docker scout cves fs://. > scoutcves.txt
           cat scoutcves.txt
 
       - name: Docker Build
@@ -134,9 +134,9 @@ jobs:
         run: |
           curl -fsSL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh -o install-scout.sh
           sh install-scout.sh
-          docker-scout quickview sevenajay/myntra:latest > scoutimagequickview.txt
+          docker scout quickview sevenajay/myntra:latest > scoutimagequickview.txt
           cat scoutimagequickview.txt
-          docker-scout cves sevenajay/myntra:latest > scoutimagecves.txt
+          docker scout cves sevenajay/myntra:latest > scoutimagecves.txt
           cat scoutimagecves.txt
 
       - name: Stop and Remove Old Container
