@@ -1,0 +1,223 @@
+name: Script
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  install-docker:
+    runs-on: [self-hosted, git-workflow]
+    steps:
+      - name: Check if Docker is already installed
+        id: check-docker
+        run: |
+          if command -v docker &> /dev/null; then
+            echo "Docker is already installed."
+            echo "docker_installed=true" >> $GITHUB_ENV
+          else
+            echo "docker_installed=false" >> $GITHUB_ENV
+          fi
+        shell: bash
+
+      - name: Prevent Re-run if Docker is Installed
+        if: env.docker_installed == 'true'
+        run: exit 0
+
+      - name: Install Docker
+        if: env.docker_installed == 'false'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ca-certificates curl
+          sudo install -m 0755 -d /etc/apt/keyrings
+          sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+          sudo chmod a+r /etc/apt/keyrings/docker.asc
+          echo \
+            "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+            $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+            sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+          sudo apt-get update && sudo apt-get upgrade -y
+          sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+          sudo systemctl start docker
+          sudo systemctl enable docker
+          sudo usermod -aG docker ubuntu
+          newgrp docker
+          sudo chmod 666 /var/run/docker.sock
+          echo "docker_installed=true" >> $GITHUB_ENV
+          echo "Docker installed successfully!"
+
+      - name: Verify Docker Installation
+        if: env.docker_installed == 'true'
+        run: docker --version
+
+  install-java:
+    runs-on: [self-hosted, git-workflow]
+    steps:
+      - name: Check if Java is already installed
+        id: check-java
+        run: |
+          if command -v java &> /dev/null; then
+            echo "Java is already installed."
+            echo "java_installed=true" >> $GITHUB_ENV
+          else
+            echo "java_installed=false" >> $GITHUB_ENV
+          fi
+        shell: bash
+
+      - name: Prevent Re-run if Java is Installed
+        if: env.java_installed == 'true'
+        run: exit 0
+
+      - name: Install Temurin JDK 17
+        if: env.java_installed == 'false'
+        run: |
+          sudo apt update
+          sudo touch /etc/apt/keyrings/adoptium.asc
+          sudo wget -O /etc/apt/keyrings/adoptium.asc https://packages.adoptium.net/artifactory/api/gpg/key/public
+          echo "deb [signed-by=/etc/apt/keyrings/adoptium.asc] https://packages.adoptium.net/artifactory/deb $(awk -F= '/^VERSION_CODENAME/{print$2}' /etc/os-release) main" | sudo tee /etc/apt/sources.list.d/adoptium.list
+          sudo apt-get update && sudo apt-get upgrade -y
+          sudo apt install temurin-17-jdk -y
+          echo "java_installed=true" >> $GITHUB_ENV
+          echo "Java installed successfully!"
+
+      - name: Verify Java Installation
+        if: env.java_installed == 'true'
+        run: /usr/bin/java --version
+
+  install-trivy:
+    runs-on: [self-hosted, git-workflow]
+    steps:
+      - name: Check if Trivy is already installed
+        id: check-trivy
+        run: |
+          if command -v trivy &> /dev/null; then
+            echo "Trivy is already installed."
+            echo "trivy_installed=true" >> $GITHUB_ENV
+          else
+            echo "trivy_installed=false" >> $GITHUB_ENV
+          fi
+        shell: bash
+
+      - name: Prevent Re-run if Trivy is Installed
+        if: env.trivy_installed == 'true'
+        run: exit 0
+
+      - name: Install Trivy
+        if: env.trivy_installed == 'false'
+        run: |
+          sudo apt-get install wget apt-transport-https gnupg lsb-release -y
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update && sudo apt-get upgrade -y
+          sudo apt-get install trivy -y
+          echo "trivy_installed=true" >> $GITHUB_ENV
+          echo "Trivy installed successfully!"
+
+      - name: Verify Trivy Installation
+        if: env.trivy_installed == 'true'
+        run: trivy --version
+
+  install-terraform:
+    runs-on: [self-hosted, git-workflow]
+    steps:
+      - name: Check if Terraform is already installed
+        id: check-terraform
+        run: |
+          if command -v terraform &> /dev/null; then
+            echo "Terraform is already installed."
+            echo "terraform_installed=true" >> $GITHUB_ENV
+          else
+            echo "terraform_installed=false" >> $GITHUB_ENV
+          fi
+        shell: bash
+
+      - name: Prevent Re-run if Terraform is Installed
+        if: env.terraform_installed == 'true'
+        run: exit 0
+
+      - name: Install Terraform
+        if: env.terraform_installed == 'false'
+        run: |
+          sudo apt-get update && sudo apt-get install -y gnupg software-properties-common
+          wget -O- https://apt.releases.hashicorp.com/gpg | gpg --dearmor | sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg > /dev/null
+          gpg --no-default-keyring --keyring /usr/share/keyrings/hashicorp-archive-keyring.gpg --fingerprint
+          echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+          sudo apt-get update && sudo apt-get upgrade -y
+          sudo apt-get install terraform -y
+          echo "terraform_installed=true" >> $GITHUB_ENV
+          echo "Terraform installed successfully!"
+
+      - name: Verify Terraform Installation
+        if: env.terraform_installed == 'true'
+        run: terraform --version
+
+  install-kubectl:
+    runs-on: [self-hosted, git-workflow]
+    steps:
+      - name: Check if Kubectl is already installed
+        id: check-kubectl
+        run: |
+          if command -v kubectl &> /dev/null; then
+            echo "Kubectl is already installed."
+            echo "kubectl_installed=true" >> $GITHUB_ENV
+          else
+            echo "kubectl_installed=false" >> $GITHUB_ENV
+          fi
+        shell: bash
+
+      - name: Prevent Re-run if Kubectl is Installed
+        if: env.kubectl_installed == 'true'
+        run: exit 0
+
+      - name: Install Kubectl
+        if: env.kubectl_installed == 'false'
+        run: |
+          sudo apt update
+          sudo apt install curl -y
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl.sha256"
+          echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check
+          sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+          echo "kubectl_installed=true" >> $GITHUB_ENV
+          echo "Kubectl installed successfully!"
+
+      - name: Verify Kubectl Installation
+        if: env.kubectl_installed == 'true'
+        run: kubectl version --client
+
+  install-aws-cli:
+    runs-on: [self-hosted, git-workflow]
+    steps:
+      - name: Check if AWS-CLI is already installed
+        id: check-aws-cli
+        run: |
+          if command -v aws &> /dev/null; then
+            echo "AWS CLI is already installed."
+            echo "aws_installed=true" >> $GITHUB_ENV
+          else
+            echo "aws_installed=false" >> $GITHUB_ENV
+          fi
+        shell: bash
+
+      - name: Prevent Re-run if AWS CLI is Installed
+        if: env.aws_installed == 'true'
+        run: exit 0
+
+      - name: Install AWS CLI
+        if: env.aws_installed == 'false'
+        run: |
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          sudo apt-get install unzip -y
+          sudo unzip awscliv2.zip
+          sudo ./aws/install
+          sudo rm -rf aws
+          echo "aws_installed=true" >> $GITHUB_ENV
+          echo "AWS CLI installed successfully!"
+
+      - name: Verify AWS CLI Installation
+        if: env.aws_installed == 'true'
+        run: aws --version

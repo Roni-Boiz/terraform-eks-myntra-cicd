@@ -1,0 +1,154 @@
+name: CI/CD Pipeline
+
+on:
+  workflow_run:
+    workflows: ["Terraform"]
+    types:
+      - completed
+    status: success
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '22'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Install Serve Locally
+        run: npm install serve
+
+      - name: Build Application
+        run: npm run build
+
+      - name: Start Application
+        run: npx serve build &
+      
+      - name: Wait for Application to Start
+        run: sleep 10
+
+      - name: Run Tests
+        run: curl --fail http://localhost:3000 || exit 1
+          
+  build:
+    name: Build
+    needs: Test
+    runs-on: [self-hosted, git-workflow]
+    steps:
+      - name: Checkout Code
+        id: checkout-code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Build and Analyze with SonarQube
+        id: sonarqube-analyze
+        uses: sonarsource/sonarqube-scan-action@master
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+      - name: Trivy File Scan
+        id: trivy-file-scan
+        run: |
+          trivy fs . > trivyfs.txt
+          cat trivyfs.txt
+
+      - name: Docker Scout Scan
+        id: docker-scout-scan
+        run: |
+          docker-scout quickview fs://. > scoutquickview.txt
+          cat scoutquickview.txt
+          docker-scout cves fs://. > scoutcves.txt
+          cat scoutcves.txt
+
+      - name: Docker Build
+        id: docker-build
+        run: |
+          docker build -t myntra .
+          docker tag myntra don361/myntra:latest
+        env:
+          DOCKER_CLI_ACI: 1
+
+      - name: Docker Push
+        id: docker-push
+        run: |
+          docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+          docker push don361/myntra:latest
+        env:
+          DOCKER_CLI_ACI: 1
+      
+      - name: Send a Slack Notification
+        if: always()
+        uses: act10ns/slack@v1
+        with:
+          status: ${{ job.status }}
+          steps: ${{ toJson(steps) }}
+          channel: '#github-actions'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  deploy:
+    name: Deploy
+    needs: Build 
+    runs-on: [self-hosted, git-workflow]
+    steps:
+      - name: Docker Pull
+        id: docker-pull
+        run: docker pull don361/myntra:latest
+
+      - name: Trivy Image scan
+        id: trivy-image-scan
+        run: |
+          trivy image don361/myntra:latest > trivyimage.txt
+          cat trivyimage.txt
+
+      - name: Docker Scout Image Scan
+        id: docker-scout-image-scan
+        run: |
+          docker-scout quickview sevenajay/myntra:latest > scoutimagequickview.txt
+          cat scoutimagequickview.txt
+          docker-scout cves sevenajay/myntra:latest > scoutimagecves.txt
+          cat scoutimagecves.txt
+
+      - name: Stop and Remove Old Container
+        run: |
+          docker stop game || true
+          docker rm -f game || true
+
+      - name: Deploy to Container
+        id: docker-deploy
+        run: docker run -d --name game -p 3000:3000 don361/myntra:latest
+
+      - name: Prune Unused Docker Images
+        id: docker-prune
+        run: docker image prune -a -f
+
+      - name: Update Kubeconfig
+        id: update-k8s-current-context
+        run: aws eks --region ap-south-1 update-kubeconfig --name EKS_CLOUD
+
+      - name: Deploy to Kubernetes
+        id: deploy-to-k8s
+        run: kubectl apply -f manifests/deployment-service.yml
+  
+      - name: Send a Slack Notification
+        if: always()
+        uses: act10ns/slack@v1
+        with:
+          status: ${{ job.status }}
+          steps: ${{ toJson(steps) }}
+          channel: '#github-actions'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

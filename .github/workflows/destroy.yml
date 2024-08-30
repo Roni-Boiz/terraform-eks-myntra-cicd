@@ -1,0 +1,70 @@
+name: Destroy
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-analyze-scan:
+    name: Destroy
+    runs-on: [self-hosted, git-workflow]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+  
+      - name: Destroy Containers
+        id: destroy-containers
+        run: | 
+          docker stop game || true
+          docker rm game || true
+        
+      - name: Update Kubeconfig
+        run: aws eks --region ap-south-1 update-kubeconfig --name EKS_CLOUD
+
+      - name: Destroy Kubernetes Deployments
+        id: destroy-from-k8s
+        run: kubectl delete -f manifests/deployment-service.yml || true
+
+      - name: Update Backend States
+        run: terraform init
+
+      - name: Destroy Resources
+        id: destroy-resources
+        run: terraform destroy --auto-approve
+
+      - name: Delete DynamoDB Table
+        id: delete-dynamodb-table
+        run: |
+          aws dynamodb delete-table --table-name terraform-state-locking-table --region ap-south-1
+
+      - name: Delete S3 Bucket
+        id: delete-s3-bucket
+        run: |
+          aws s3api list-object-versions --bucket terraform-github-gitlab-tf-state-backend --output text --query 'Versions[*].[Key,VersionId]' | \
+          grep -v "None" | while read -r key versionId; do
+            if [[ -n "$versionId" && "$versionId" != "None" ]]; then
+                aws s3api delete-object --bucket terraform-github-gitlab-tf-state-backend --key "$key" --version-id "$versionId"
+            fi
+          done
+
+          aws s3api list-object-versions --bucket terraform-github-gitlab-tf-state-backend --output text --query 'DeleteMarkers[*].[Key,VersionId]' | \
+          grep -v "None" | while read -r key versionId; do
+            if [[ -n "$versionId" && "$versionId" != "None" ]]; then
+                aws s3api delete-object --bucket terraform-github-gitlab-tf-state-backend --key "$key" --version-id "$versionId"
+            fi
+          done
+
+          aws s3api list-object-versions --bucket terraform-github-gitlab-tf-state-backend
+
+          aws s3 rb s3://terraform-github-gitlab-tf-state-backend
+  
+      - name: Send a Slack Notification
+        if: always()
+        uses: act10ns/slack@v1
+        with:
+          status: ${{ job.status }}
+          steps: ${{ toJson(steps) }}
+          channel: '#github-actions'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
