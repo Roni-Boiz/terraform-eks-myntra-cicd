@@ -43,6 +43,16 @@ jobs:
 
       - name: Run Tests
         run: curl --fail http://localhost:3000 || exit 1
+
+      - name: Send a Slack Notification
+        if: always()
+        uses: act10ns/slack@v1
+        with:
+          status: ${{ job.status }}
+          steps: ${{ toJson(steps) }}
+          channel: '#github-actions'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           
   build:
     name: Build
@@ -71,6 +81,7 @@ jobs:
       - name: Docker Scout Scan
         id: docker-scout-scan
         run: |
+          docker scout install
           docker-scout quickview fs://. > scoutquickview.txt
           cat scoutquickview.txt
           docker-scout cves fs://. > scoutcves.txt
@@ -120,6 +131,7 @@ jobs:
       - name: Docker Scout Image Scan
         id: docker-scout-image-scan
         run: |
+          docker scout install
           docker-scout quickview sevenajay/myntra:latest > scoutimagequickview.txt
           cat scoutimagequickview.txt
           docker-scout cves sevenajay/myntra:latest > scoutimagecves.txt
