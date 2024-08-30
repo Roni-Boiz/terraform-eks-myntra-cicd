@@ -29,6 +29,9 @@ jobs:
       - name: Install Serve Locally
         run: npm install serve
 
+      - name: Update Browsers List
+        run: npx browserslist@latest --update-db
+
       - name: Build Application
         run: npm run build
 
