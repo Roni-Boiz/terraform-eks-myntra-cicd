@@ -44,6 +44,7 @@ jobs:
           sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
           sudo systemctl start docker
           sudo systemctl enable docker
+          curl -sSfL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh | sh -s -- -b /usr/local/bin
           sudo usermod -aG docker ubuntu
           newgrp docker
           sudo chmod 666 /var/run/docker.sock

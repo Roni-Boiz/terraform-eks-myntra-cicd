@@ -16,8 +16,8 @@ jobs:
       - name: Destroy Containers
         id: destroy-containers
         run: | 
-          docker stop game || true
-          docker rm game || true
+          docker stop myntra || true
+          docker rm myntra || true
         
       - name: Update Kubeconfig
         run: aws eks --region ap-south-1 update-kubeconfig --name EKS_CLOUD
