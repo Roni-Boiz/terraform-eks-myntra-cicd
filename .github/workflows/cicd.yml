@@ -81,6 +81,7 @@ jobs:
       - name: Docker Scout Scan
         id: docker-scout-scan
         run: |
+          curl -sSL https://get.docker.com | sh
           docker scout install
           docker-scout quickview fs://. > scoutquickview.txt
           cat scoutquickview.txt
@@ -131,6 +132,7 @@ jobs:
       - name: Docker Scout Image Scan
         id: docker-scout-image-scan
         run: |
+          curl -sSL https://get.docker.com | sh
           docker scout install
           docker-scout quickview sevenajay/myntra:latest > scoutimagequickview.txt
           cat scoutimagequickview.txt
