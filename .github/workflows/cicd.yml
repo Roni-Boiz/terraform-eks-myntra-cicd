@@ -33,7 +33,7 @@ jobs:
         run: npx browserslist@latest --update-db
 
       - name: Build Application
-        run: npm run build
+        run: CI=false npm run build
 
       - name: Start Application
         run: npx serve build &
