@@ -45,8 +45,8 @@ jobs:
           sudo systemctl start docker
           sudo systemctl enable docker
           sudo usermod -aG docker $USER
+          exec sg docker newgrp $(id -gn)
           sudo chmod 666 /var/run/docker.sock
-          exec sg docker newgrp `id -gn
           echo "docker_installed=true" >> $GITHUB_ENV
           echo "Docker installed successfully!"
 
