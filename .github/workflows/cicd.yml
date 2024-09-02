@@ -155,7 +155,9 @@ jobs:
 
       - name: Deploy to Kubernetes
         id: deploy-to-k8s
-        run: kubectl apply -f manifests/deployment-service.yml
+        run: |
+          kubectl apply -f manifests/deployment-service.yml
+          echo "K8S_APPLICATION_URL=$(kubectl get svc myntra-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')" >> $GITHUB_ENV
   
       - name: Send a Slack Notification
         if: always()
@@ -164,5 +166,6 @@ jobs:
           status: ${{ job.status }}
           steps: ${{ toJson(steps) }}
           channel: '#github-actions'
+          message: "Application is available at: ${{ env.K8S_APPLICATION_URL }}"
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
