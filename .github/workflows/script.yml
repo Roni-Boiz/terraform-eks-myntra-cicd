@@ -45,20 +45,16 @@ jobs:
           sudo systemctl start docker
           sudo systemctl enable docker
           sudo usermod -aG docker $USER
-          exec sg docker newgrp $(id -gn)
+          sudo curl -sSfL -o /tmp/install.sh https://raw.githubusercontent.com/docker/scout-cli/main/install.sh
+          sudo sh /tmp/install.sh --
+          newgrp docker
           sudo chmod 666 /var/run/docker.sock
           echo "docker_installed=true" >> $GITHUB_ENV
           echo "Docker installed successfully!"
 
       - name: Verify Docker Installation
         if: env.docker_installed == 'true'
-        run: docker --version
-
-      - name: Install Docker Scout
-        if: env.docker_installed == 'true'
-        run: |
-          curl -sSfL -o /tmp/install.sh https://raw.githubusercontent.com/docker/scout-cli/main/install.sh
-          sh /tmp/install.sh --
+        run: docker --version        
 
       - name: Verify Docker Scout Installation
         if: env.docker_installed == 'true'
